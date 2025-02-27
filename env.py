@@ -14,7 +14,7 @@ conveyor_2_speed = 3
 
 env = sim.Environment(
     # trace=True if run_till <= 100 else False,
-    trace=True,
+    trace=False,
     random_seed=seed,
 )
 env.total_count = 0
@@ -34,7 +34,7 @@ machine = Machine(
     name="機器手臂",
     from_buffer=head_buffer,
     to_buffer=tail_buffer,
-    machine_cycle_time=2,
+    machine_cycle_time=2.83,
 )
 
 conveyor2 = Conveyor(
@@ -69,25 +69,16 @@ class EnvScanner(sim.Component):
             # wait until next scan
             l[env.now()] = {
                 "c1": round(conveyor1.remain_length, 2),
-                "m": round(machine.scheduled_time() - env.now(), 2),
-                "m_s": round(machine.scheduled_time(), 2),
-                "c2": round(
-                    (
-                        conveyor2.scheduled_time()
-                        if conveyor2.scheduled_time() == np.inf
-                        else conveyor2.remain_length
-                    ),
-                    2,
-                ),
-                'tail_ava': tail_buffer.available_quantity()
+                "m": round(machine.scheduled_time(), 2),
+                "c2": round(conveyor2.remain_length, 2),
                 # "c2_status": conveyor2.status(),
             }
-            conveyor1.speed_accelerate(accelerate=0.3)
+            # conveyor1.speed_accelerate(accelerate=0.3)
 
             self.hold(self.scan_interval)
 
 
-env_scanner = EnvScanner(name="監視器")
+env_scanner = EnvScanner(name="監視器", scan_interval=1)
 env.run(run_till)
 
 # %%
