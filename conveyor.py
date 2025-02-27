@@ -7,15 +7,20 @@ class FirstConveyor(sim.Component):
     def __init__(
         self,
         to_buffer: sim.Store,
-        conveyor_speed: int = 2,
-        conveyor_length: int = 20,
+        conveyor_speed: float = 2.0,
+        conveyor_max_speed: int = 5,
+        conveyor_min_speed: int = 0,
+        conveyor_length: float = 20.0,
         *args,
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
         self.to_buffer = to_buffer
         self.conveyor_speed = conveyor_speed
+        self.conveyor_max_speed = conveyor_max_speed
+        self.conveyor_min_speed = conveyor_min_speed
         self.conveyor_length = conveyor_length
+        self.reset_remain_length
 
     @property
     def reset_remain_length(self):
@@ -38,7 +43,10 @@ class FirstConveyor(sim.Component):
             self.to_store(self.to_buffer, product)
 
     def speed_accelerate(self, accelerate):
-        self.conveyor_speed += accelerate
+        self.conveyor_speed = max(
+            min(self.conveyor_speed + accelerate, self.conveyor_max_speed),
+            self.conveyor_min_speed,
+        )
 
 
 class Conveyor(sim.Component):
@@ -46,8 +54,10 @@ class Conveyor(sim.Component):
         self,
         from_buffer: sim.Store,
         to_buffer: sim.Store,
-        conveyor_speed: int = 2,
-        conveyor_length: int = 20,
+        conveyor_speed: float = 2.0,
+        conveyor_max_speed: int = 5,
+        conveyor_min_speed: int = 0,
+        conveyor_length: float = 20.0,
         *args,
         **kwargs,
     ):
@@ -55,7 +65,10 @@ class Conveyor(sim.Component):
         self.from_buffer = from_buffer
         self.to_buffer = to_buffer
         self.conveyor_speed = conveyor_speed
+        self.conveyor_max_speed = conveyor_max_speed
+        self.conveyor_min_speed = conveyor_min_speed
         self.conveyor_length = conveyor_length
+        self.reset_remain_length
 
     @property
     def reset_remain_length(self):
@@ -63,9 +76,7 @@ class Conveyor(sim.Component):
 
     def process(self):
         while True:
-            while (
-                len(self.from_buffer) == 0 and self.to_buffer.available_quantity() <= 0
-            ):
+            while len(self.from_buffer) == 0:
                 self.standby()
             self.reset_remain_length
             product = self.from_store(self.from_buffer)
@@ -76,8 +87,12 @@ class Conveyor(sim.Component):
                 else:
                     self.hold(self.remain_length / self.conveyor_speed)
                     self.remain_length = 0
-
+            while self.to_buffer.available_quantity() <= 0:
+                self.standby()
             self.to_store(self.to_buffer, product)
 
     def speed_accelerate(self, accelerate):
-        self.conveyor_speed += accelerate
+        self.conveyor_speed = max(
+            min(self.conveyor_speed + accelerate, self.conveyor_max_speed),
+            self.conveyor_min_speed,
+        )
