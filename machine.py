@@ -18,7 +18,7 @@ class Machine(sim.Component):
     def process(self):
         while True:
             while (
-                len(self.from_buffer) == 0 or self.to_buffer.available_quantity() <= 0
+                len(self.from_buffer) == 0 and self.to_buffer.available_quantity() <= 0
             ):
                 self.standby()
             product = self.from_store(self.from_buffer)
