@@ -23,7 +23,7 @@ class FirstConveyor(sim.Component):
                 self.standby()
             product = SN(name="產品.")
             self.hold(self.conveyor_length / self.conveyor_speed)
-            self.enter(self.to_buffer, product)
+            self.to_store(self.to_buffer, product)
 
 
 class Conveyor(sim.Component):
@@ -50,4 +50,4 @@ class Conveyor(sim.Component):
                 self.standby()
             product = self.from_store(self.from_buffer)
             self.hold(self.conveyor_length / self.conveyor_speed)
-            self.enter(self.to_buffer, product)
+            self.to_store(self.to_buffer, product)
