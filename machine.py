@@ -23,4 +23,4 @@ class Machine(sim.Component):
                 self.standby()
             product = self.from_store(self.from_buffer)
             self.hold(self.machine_cycle_time)
-            self.to_store(self.to_buffer, product)
+            self.enter(self.to_buffer, product)
