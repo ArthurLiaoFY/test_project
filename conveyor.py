@@ -19,9 +19,9 @@ class Conveyor(sim.Component):
         super().__init__(*args, **kwargs)
         self.from_buffer = from_buffer
         self.to_buffer = to_buffer
-        self.conveyor_speed = conveyor_speed * scan_interval
-        self.conveyor_max_speed = conveyor_max_speed * scan_interval
-        self.conveyor_min_speed = conveyor_min_speed * scan_interval
+        self.conveyor_speed = conveyor_speed
+        self.conveyor_max_speed = conveyor_max_speed
+        self.conveyor_min_speed = conveyor_min_speed
         self.conveyor_length = conveyor_length
         self.scan_interval = scan_interval
 
@@ -55,17 +55,27 @@ class Conveyor(sim.Component):
             production_complete = self.remain_length <= 0
             self.reset_offset
             while not production_complete:
-                if self.remain_length - self.conveyor_speed >= 0:
+                if self.remain_length - self.conveyor_speed * self.scan_interval >= 0:
                     self.hold(self.remain_time)
-                    self.remain_length -= self.conveyor_speed
+                    self.remain_length -= self.conveyor_speed * self.scan_interval
                     self.reset_remain_time
                 else:
                     self.hold(
-                        self.scan_interval * (self.remain_length / self.conveyor_speed)
+                        self.scan_interval
+                        * (
+                            self.remain_length
+                            / (self.conveyor_speed * self.scan_interval)
+                        )
                     )
-                    self.offset = -1 * (self.remain_length - self.conveyor_speed)
+                    self.offset = -1 * (
+                        self.remain_length - self.conveyor_speed * self.scan_interval
+                    )
                     self.remain_time = self.scan_interval * (
-                        1 - (self.remain_length / self.conveyor_speed)
+                        1
+                        - (
+                            self.remain_length
+                            / (self.conveyor_speed * self.scan_interval)
+                        )
                     )
                     production_complete = True
 
@@ -76,6 +86,9 @@ class Conveyor(sim.Component):
 
     def speed_accelerate(self, accelerate):
         self.conveyor_speed = max(
-            min(self.conveyor_speed + accelerate, self.conveyor_max_speed),
-            self.conveyor_min_speed,
+            min(
+                (self.conveyor_speed + accelerate) * self.scan_interval,
+                self.conveyor_max_speed * self.scan_interval,
+            ),
+            self.conveyor_min_speed * self.scan_interval,
         )
