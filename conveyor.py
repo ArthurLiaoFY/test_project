@@ -19,11 +19,13 @@ class Conveyor(sim.Component):
         super().__init__(*args, **kwargs)
         self.from_buffer = from_buffer
         self.to_buffer = to_buffer
-        self.conveyor_speed = conveyor_speed
         self.conveyor_max_speed = conveyor_max_speed
         self.conveyor_min_speed = conveyor_min_speed
-        self.conveyor_length = conveyor_length
         self.scan_interval = scan_interval
+        self.conveyor_speed = self.speed_bound_constraint(conveyor_speed)
+        self.conveyor_length = conveyor_length
+
+        self.conveyor_speed_per_scan = self.conveyor_speed * scan_interval
 
         self.reset_offset
         self.reset_remain_length
@@ -55,27 +57,20 @@ class Conveyor(sim.Component):
             production_complete = self.remain_length <= 0
             self.reset_offset
             while not production_complete:
-                if self.remain_length - self.conveyor_speed * self.scan_interval >= 0:
+                if self.remain_length - self.conveyor_speed_per_scan >= 0:
                     self.hold(self.remain_time)
-                    self.remain_length -= self.conveyor_speed * self.scan_interval
+                    self.remain_length -= self.conveyor_speed_per_scan
                     self.reset_remain_time
                 else:
                     self.hold(
                         self.scan_interval
-                        * (
-                            self.remain_length
-                            / (self.conveyor_speed * self.scan_interval)
-                        )
+                        * (self.remain_length / (self.conveyor_speed_per_scan))
                     )
                     self.offset = -1 * (
-                        self.remain_length - self.conveyor_speed * self.scan_interval
+                        self.remain_length - self.conveyor_speed_per_scan
                     )
                     self.remain_time = self.scan_interval * (
-                        1
-                        - (
-                            self.remain_length
-                            / (self.conveyor_speed * self.scan_interval)
-                        )
+                        1 - (self.remain_length / (self.conveyor_speed_per_scan))
                     )
                     production_complete = True
 
@@ -85,10 +80,16 @@ class Conveyor(sim.Component):
             self.to_store(self.to_buffer, product)
 
     def speed_accelerate(self, accelerate):
-        self.conveyor_speed = max(
+        self.conveyor_speed_per_scan = (
+            self.speed_bound_constraint(self.conveyor_speed + accelerate)
+            * self.scan_interval
+        )
+
+    def speed_bound_constraint(self, speed):
+        return max(
             min(
-                (self.conveyor_speed + accelerate) * self.scan_interval,
-                self.conveyor_max_speed * self.scan_interval,
+                speed,
+                self.conveyor_max_speed,
             ),
-            self.conveyor_min_speed * self.scan_interval,
+            self.conveyor_min_speed,
         )
