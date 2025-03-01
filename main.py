@@ -15,6 +15,8 @@ conveyor_agent = {
     "conveyor1_agent": Agent(**q_learn_kwargs),
     "conveyor2_agent": Agent(**q_learn_kwargs),
 }
+
+
 # %%
 class EnvScanner(sim.Component):
     def __init__(self, scan_interval: int = 1, *args, **kwargs):
@@ -185,8 +187,8 @@ class EnvScanner(sim.Component):
 # %%
 
 
-for episode in range(50000):
-    env = sim.Environment(trace=False)
+for episode in range(10000):
+    env = sim.Environment(trace=True)
 
     head_buffer = sim.Store(name="前方緩存區", capacity=1, env=env)
     tail_buffer = sim.Store(name="後方緩存區", capacity=1, env=env)
@@ -232,10 +234,13 @@ for episode in range(50000):
             conveyor1.status.print_histogram(values=True)
             machine.status.print_histogram(values=True)
             conveyor2.status.print_histogram(values=True)
-        sim.reset()
     except ValueError:
         # if not dividable occur value error
+        continue
 
-        sim.reset()
+    sim.reset()
+    break
 
+# %%
+env_scanner.speed_accelerate_history
 # %%

@@ -9,7 +9,7 @@ q_learn_kwargs = {
     "discount_factor": 0.99,
     "fully_explore_step": 0,
 }
-run_till = 300
+run_till = 50
 seed = 1122
 conveyor_1_speed = 0.5
 conveyor_2_speed = 0.5
