@@ -1,17 +1,22 @@
 # %%
+import json
 from collections import defaultdict
 
 import numpy as np
 import salabim as sim
 
+from agent.q_agent import Agent
 from conveyor import Conveyor
 from machine import Machine
 
+q_learn_kwargs = json.load(open("config.json"))
+# %%
 run_till = 50  # 1 hour
 seed = 1122
-conveyor_1_speed = 4
-conveyor_2_speed = 4
-scan_interval = 0.1
+conveyor_1_speed = 10
+conveyor_2_speed = 10
+conveyor_scan_interval = 0.01
+env_scan_interval = 3
 
 env = sim.Environment(
     # trace=True if run_till <= 100 else False,
@@ -30,7 +35,7 @@ conveyor1 = Conveyor(
     from_buffer=None,
     to_buffer=head_buffer,
     conveyor_speed=conveyor_1_speed,
-    scan_interval=scan_interval,
+    scan_interval=conveyor_scan_interval,
     env=env,
 )
 
@@ -47,21 +52,26 @@ conveyor2 = Conveyor(
     from_buffer=tail_buffer,
     to_buffer=sn_sink,
     conveyor_speed=conveyor_2_speed,
-    scan_interval=scan_interval,
+    scan_interval=conveyor_scan_interval,
     env=env,
 )
 
-l = {}
+
+conveyor_agent = {
+    "conveyor1_agent": Agent(**q_learn_kwargs),
+    "conveyor2_agent": Agent(**q_learn_kwargs),
+}
+# %%
 
 
 class EnvScanner(sim.Component):
     def __init__(self, scan_interval: int = 1, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.scan_record = {}
         self.scan_interval = scan_interval
-        self.reset()
 
-    def reset(self) -> None:
-        self.conveyor_speed_dict = defaultdict(list)
+    def setup(self):
+        self.scan_record = {}
 
     def reward(self):
         part1 = len(head_buffer) + len(tail_buffer)  # machine idle time
@@ -72,26 +82,94 @@ class EnvScanner(sim.Component):
 
     def process(self) -> None:
         while True:
+            # state
+            conveyor_state = {
+                "conveyor1": round(conveyor1.remain_length, 2),
+                "head_buffer_full": head_buffer.available_quantity() == 0,
+                "machine": round(machine.scheduled_time() - env.now(), 3),
+                "tail_buffer_full": tail_buffer.available_quantity() == 0,
+                "conveyor2": round(conveyor2.remain_length, 2),
+            }
+            # action
+            conveyor1_action_idx = conveyor_agent["conveyor1_agent"].select_action_idx(
+                state_tuple=tuple(
+                    v
+                    for k, v in conveyor_state.items()
+                    if k not in ("tail_buffer_full", "conveyor2")
+                )
+            )
+            conveyor2_action_idx = conveyor_agent["conveyor2_agent"].select_action_idx(
+                state_tuple=tuple(
+                    v
+                    for k, v in conveyor_state.items()
+                    if k not in ("head_buffer_full", "conveyor1")
+                )
+            )
+            # apply action
+            conveyor1.speed_accelerate(
+                accelerate=conveyor_agent["conveyor1_agent"].action_idx_to_action(
+                    conveyor1_action_idx
+                )
+            )
+            conveyor2.speed_accelerate(
+                accelerate=conveyor_agent["conveyor2_agent"].action_idx_to_action(
+                    conveyor2_action_idx
+                )
+            )
+            self.scan_record[round(env.now(), 2)] = conveyor_state
 
             # wait until next scan
-            l[round(env.now(), 2)] = {
-                "c1": round(conveyor1.remain_length, 2),
-                "c1_s": round(conveyor1.conveyor_speed, 2),
-                "m": round(machine.scheduled_time() -env.now(), 3),
-                "c2": round(conveyor2.remain_length, 2),
-                # "of": round(conveyor1.offset, 2),
-                # "c1_rt": round(conveyor1.remain_time, 2),
-                # "c1_rl": round(conveyor1.remain_length, 2),
-                # "c2_status": conveyor2.status(),
-            }
-            # conveyor1.speed_accelerate(accelerate=0.3)
-
             self.hold(self.scan_interval)
 
+            # reward
+            reward = self.reward()
 
-env_scanner = EnvScanner(name="監視器", scan_interval=scan_interval)
+            # next state
+            conveyor_new_state = {
+                "conveyor1": round(conveyor1.remain_length, 2),
+                "head_buffer_full": head_buffer.available_quantity() == 0,
+                "machine": round(machine.scheduled_time() - env.now(), 3),
+                "tail_buffer_full": tail_buffer.available_quantity() == 0,
+                "conveyor2": round(conveyor2.remain_length, 2),
+            }
+
+            # update policy
+            conveyor_agent['conveyor1_agent'].update_policy(
+                state_tuple=tuple(
+                    v
+                    for k, v in conveyor_state.items()
+                    if k not in ("tail_buffer_full", "conveyor2")
+                ),
+                action_idx=conveyor1_action_idx,
+                reward=reward,
+                next_state_tuple=tuple(
+                    v
+                    for k, v in conveyor_new_state.items()
+                    if k not in ("tail_buffer_full", "conveyor2")
+                )
+            )
+            conveyor_agent['conveyor2_agent'].update_policy(
+                state_tuple=tuple(
+                    v
+                    for k, v in conveyor_state.items()
+                    if k not in ("head_buffer_full", "conveyor1")
+                ),
+                action_idx=conveyor2_action_idx,
+                reward=reward,
+                next_state_tuple=tuple(
+                    v
+                    for k, v in conveyor_new_state.items()
+                    if k not in ("head_buffer_full", "conveyor1")
+                )
+            )
+
+            
+
+
+
+env_scanner = EnvScanner(name="監視器", scan_interval=env_scan_interval)
 env.run(run_till)
 
 # %%
-l
+env.scan_record
 # %%
