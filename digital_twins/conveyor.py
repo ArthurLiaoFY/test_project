@@ -1,6 +1,6 @@
 import salabim as sim
 
-from product import SN
+from digital_twins.product import SN
 
 
 class Conveyor(sim.Component):

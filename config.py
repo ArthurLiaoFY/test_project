@@ -9,3 +9,14 @@ q_learn_kwargs = {
     "discount_factor": 0.99,
     "fully_explore_step": 0,
 }
+run_till = 300
+seed = 1122
+conveyor_1_speed = 0.5
+conveyor_2_speed = 0.5
+conveyor1_length = 3
+conveyor2_length = 2
+conveyor_max_speed = 1
+conveyor_min_speed = 0
+conveyor_scan_interval = 0.033
+env_scan_interval = 1
+machine_cycle_time = 7

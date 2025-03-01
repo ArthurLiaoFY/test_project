@@ -6,28 +6,15 @@ import numpy as np
 import salabim as sim
 
 from agent.q_agent import Agent
-from config import q_learn_kwargs
-from conveyor import Conveyor
-from machine import Machine
+from config import *
+from digital_twins.conveyor import Conveyor
+from digital_twins.machine import Machine
 
 # %%
-run_till = 300
-seed = 1122
-conveyor_1_speed = 0.5
-conveyor_2_speed = 0.5
-conveyor1_length = 3
-conveyor2_length = 2
-conveyor_max_speed = 1
-conveyor_min_speed = 0
-conveyor_scan_interval = 0.033
-env_scan_interval = 1
-machine_cycle_time = 10
 conveyor_agent = {
     "conveyor1_agent": Agent(**q_learn_kwargs),
     "conveyor2_agent": Agent(**q_learn_kwargs),
 }
-
-
 # %%
 class EnvScanner(sim.Component):
     def __init__(self, scan_interval: int = 1, *args, **kwargs):
@@ -44,22 +31,32 @@ class EnvScanner(sim.Component):
 
     def conveyor_1_reward(self, conveyor_state):
         # conveyor 1 loss, if head buffer is empty the conveyer length is loss else speed is loss
-        return -1 * (
-            2
-            * (1 - conveyor_state.get("head_buffer_full"))
-            * conveyor_state.get("conveyor1_remain_length")
-            + conveyor_state.get("head_buffer_full")
-            * conveyor_state.get("conveyor1_speed")
+        return (
+            -1
+            * (
+                2
+                * (1 - conveyor_state.get("head_buffer_full"))
+                * conveyor_state.get("conveyor1_remain_length")
+                + conveyor_state.get("head_buffer_full")
+                * conveyor_state.get("conveyor1_speed")
+            )
+            if not conveyor_state.get("pass_one_to_head_buffer")
+            else 0
         )
 
     def conveyor_2_reward(self, conveyor_state):
         # conveyor 2 loss, if tail buffer is empty speed is loss else the conveyer length is loss
-        return -1 * (
-            2
-            * (1 - conveyor_state.get("tail_buffer_full"))
-            * conveyor_state.get("conveyor2_speed")
-            + conveyor_state.get("tail_buffer_full")
-            * conveyor_state.get("conveyor1_remain_length")
+        return (
+            -1
+            * (
+                2
+                * (1 - conveyor_state.get("tail_buffer_full"))
+                * conveyor_state.get("conveyor2_speed")
+                + conveyor_state.get("tail_buffer_full")
+                * conveyor_state.get("conveyor1_remain_length")
+            )
+            if not conveyor_state.get("pass_one_to_sink")
+            else 0
         )
 
     def process(self) -> None:
@@ -69,17 +66,25 @@ class EnvScanner(sim.Component):
                 "conveyor1_remain_length": conveyor1.remain_length,
                 "conveyor1_speed": conveyor1.conveyor_speed,
                 "head_buffer_full": head_buffer.available_quantity() == 0,
+                "pass_one_to_head_buffer": False,
                 "machine": round(machine.scheduled_time() - env.now(), 3),
                 "tail_buffer_full": tail_buffer.available_quantity() == 0,
                 "conveyor2_remain_length": conveyor2.remain_length,
                 "conveyor2_speed": conveyor2.conveyor_speed,
+                "pass_one_to_sink": False,
             }
             # action
             conveyor1_action_idx = conveyor_agent["conveyor1_agent"].select_action_idx(
                 state_tuple=tuple(
                     v
                     for k, v in conveyor_state.items()
-                    if k not in ("tail_buffer_full", "conveyor2_remain_length")
+                    if k
+                    not in (
+                        "tail_buffer_full",
+                        "conveyor2_remain_length",
+                        "pass_one_to_head_buffer",
+                        "pass_one_to_sink",
+                    )
                 )
             )
 
@@ -87,7 +92,13 @@ class EnvScanner(sim.Component):
                 state_tuple=tuple(
                     v
                     for k, v in conveyor_state.items()
-                    if k not in ("head_buffer_full", "conveyor1_remain_length")
+                    if k
+                    not in (
+                        "head_buffer_full",
+                        "conveyor1_remain_length",
+                        "pass_one_to_head_buffer",
+                        "pass_one_to_sink",
+                    )
                 )
             )
 
@@ -120,11 +131,25 @@ class EnvScanner(sim.Component):
             conveyor_new_state = {
                 "conveyor1_remain_length": conveyor1.remain_length,
                 "conveyor1_speed": conveyor1.conveyor_speed,
+                "pass_one_to_head_buffer": (
+                    True
+                    if conveyor1.remain_length
+                    - conveyor_state.get("conveyor1_remain_length")
+                    > 0
+                    else False
+                ),
                 "head_buffer_full": head_buffer.available_quantity() == 0,
                 "machine": round(machine.scheduled_time() - self.env.now(), 3),
                 "tail_buffer_full": tail_buffer.available_quantity() == 0,
                 "conveyor2_remain_length": conveyor2.remain_length,
                 "conveyor2_speed": conveyor2.conveyor_speed,
+                "pass_one_to_sink": (
+                    True
+                    if conveyor2.remain_length
+                    - conveyor_state.get("conveyor2_remain_length")
+                    > 0
+                    else False
+                ),
             }
             # update policy
             conveyor_agent["conveyor1_agent"].update_policy(
@@ -209,6 +234,8 @@ for episode in range(50000):
             conveyor2.status.print_histogram(values=True)
         sim.reset()
     except ValueError:
+        # if not dividable occur value error
+
         sim.reset()
 
 # %%
