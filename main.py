@@ -43,7 +43,7 @@ class EnvScanner(sim.Component):
                 * conveyor_state.get("conveyor1_speed")
             )
             if not conveyor_state.get("pass_one_to_head_buffer")
-            else 0
+            else 1
         )
 
     def conveyor_2_reward(self, conveyor_state):
@@ -58,7 +58,7 @@ class EnvScanner(sim.Component):
                 * conveyor_state.get("conveyor1_remain_length")
             )
             if not conveyor_state.get("pass_one_to_sink")
-            else 0
+            else 1
         )
 
     def process(self) -> None:
